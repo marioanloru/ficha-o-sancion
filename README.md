@@ -9,6 +9,20 @@ Bot de fichaje automatizado usando Puppeteer.
 - Node.js >= 14.0.0
 - Google Chrome, Chromium o Brave (macOS)
 
+## Clonar el repositorio
+
+```bash
+# SSH
+git clone git@github.com:marioanloru/ficha-o-sancion.git
+
+# HTTPS
+git clone https://github.com/marioanloru/ficha-o-sancion.git
+```
+
+```bash
+cd ficha-o-sancion
+```
+
 ## Instalacion
 
 ```bash
