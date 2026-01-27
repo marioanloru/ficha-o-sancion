@@ -1,0 +1,17 @@
+{
+  "name": "fichaje-bot",
+  "version": "1.0.0",
+  "description": "Bot de fichaje automatico con Puppeteer",
+  "main": "holded_bot.js",
+  "type": "module",
+  "scripts": {
+    "start": "node holded_bot.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^21.6.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
