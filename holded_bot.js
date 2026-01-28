@@ -26,6 +26,39 @@ const __dirname = path.dirname(__filename);
 // Directorio para guardar la sesión del navegador
 const USER_DATA_DIR = path.join(__dirname, '.chrome-session');
 
+// Archivo de configuración
+const CONFIG_FILE = path.join(__dirname, '.holded-config.json');
+
+// ==================== CONFIGURACIÓN ====================
+
+class Configuracion {
+  static cargar() {
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        const data = fs.readFileSync(CONFIG_FILE, 'utf8');
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      // Ignorar errores de lectura
+    }
+    return null;
+  }
+
+  static guardar(config) {
+    try {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+      return true;
+    } catch (e) {
+      console.error('Error guardando configuración:', e.message);
+      return false;
+    }
+  }
+
+  static existe() {
+    return fs.existsSync(CONFIG_FILE);
+  }
+}
+
 // ==================== LOGGING ====================
 
 class Logger {
@@ -184,8 +217,9 @@ class GeneradorHorarios {
 // ==================== BOT PRINCIPAL ====================
 
 class HolledBot {
-  constructor(headless = false) {
+  constructor(headless = false, loginGoogle = true) {
     this.headless = headless;
+    this.loginGoogle = loginGoogle;
     this.browser = null;
     this.page = null;
     this.comportamiento = ComportamientoHumano;
@@ -347,6 +381,12 @@ class HolledBot {
     // Selector del botón de fichaje
     const SELECTOR_BOTON_FICHAJE = '#root > div.MuiStack-root.css-ip40ae > div > div > main > div.MuiStack-root.css-dxi5gs > div > div > div > main > div > div > div > div.MuiStack-root.css-11w9353 > div > div.MuiStack-root.css-1scg5pb > div.MuiStack-root.css-9jay18 > div.MuiStack-root.css-8v90jo > span > button';
 
+    // Selector del botón de login con Google
+    const SELECTOR_LOGIN_GOOGLE = '#root-auth > div > div > div.MuiStack-root.css-b95f0i > div > div > div.MuiStack-root.css-157nwov > div.MuiStack-root.css-4ip17j > div.MuiStack-root.css-h2ymkg > a.css-4ahj5c';
+
+    // Selector del botón de aceptar cookies (OneTrust)
+    const SELECTOR_ACEPTAR_COOKIES = '#onetrust-accept-btn-handler';
+
     try {
       // Ir a la app de Holded
       await this.page.goto('https://app.holded.com', {
@@ -357,27 +397,63 @@ class HolledBot {
       // Manejar popups de Chrome (usar sin cuenta, ubicación, etc.)
       await this.manejarPopupsChrome();
 
+      // Manejar banner de cookies si aparece
+      try {
+        const botonCookies = await this.page.$(SELECTOR_ACEPTAR_COOKIES);
+        if (botonCookies) {
+          logger.info('🍪 Banner de cookies detectado - Aceptando...');
+          await botonCookies.click();
+          logger.info('✓ Cookies aceptadas');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch {
+        // Ignorar si no hay banner de cookies
+      }
+
       logger.info('✓ Página cargada');
       logger.info('');
-      logger.info('🔐 Buscando botón de fichaje (si no aparece, haz login manualmente)');
+      if (this.loginGoogle) {
+        logger.info('🔐 Modo: Login con Google automático');
+      } else {
+        logger.info('🔐 Modo: Login manual (haz login manualmente)');
+      }
       logger.info('');
 
       // Buscar el botón de fichaje cada 10 segundos, hasta 2 minutos
       const maxIntentos = 12; // 12 intentos x 10 segundos = 2 minutos
+      let loginGoogleClickeado = false;
 
       for (let intento = 1; intento <= maxIntentos; intento++) {
         try {
-          const boton = await this.page.$(SELECTOR_BOTON_FICHAJE);
+          // Primero verificar si ya estamos logueados (botón de fichaje visible)
+          const botonFichaje = await this.page.$(SELECTOR_BOTON_FICHAJE);
 
-          if (boton) {
+          if (botonFichaje) {
             logger.info('✓ Botón de fichaje encontrado - Login correcto');
             return true;
+          }
+
+          // Si no estamos logueados y está habilitado login con Google, buscar el botón
+          if (this.loginGoogle && !loginGoogleClickeado) {
+            const botonLoginGoogle = await this.page.$(SELECTOR_LOGIN_GOOGLE);
+
+            if (botonLoginGoogle) {
+              logger.info('🔑 Botón de Login con Google encontrado - Clickeando...');
+              await this.comportamiento.pausaRealista(0.5, 1);
+              await botonLoginGoogle.click();
+              loginGoogleClickeado = true;
+              logger.info('✓ Click en Login con Google realizado');
+              logger.info('⏳ Esperando autenticación de Google...');
+              // Dar más tiempo para la autenticación de Google
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              continue;
+            }
           }
         } catch {
           // Ignorar errores
         }
 
-        logger.info(`  ⏳ Intento ${intento}/${maxIntentos} - Botón no encontrado, esperando 10s...`);
+        logger.info(`  ⏳ Intento ${intento}/${maxIntentos} - Esperando login, 10s...`);
         await new Promise(resolve => setTimeout(resolve, 10000));
       }
 
@@ -671,6 +747,27 @@ async function main() {
   console.log('='.repeat(60) + '\n');
 
   try {
+    // Cargar o crear configuración
+    let config = Configuracion.cargar();
+
+    if (!config) {
+      console.log('⚙️  Primera ejecución - Configuración inicial\n');
+      console.log('¿Cómo quieres hacer login en Holded?');
+      console.log('1. Login con Google (automático)');
+      console.log('2. Login manual (usuario y contraseña)');
+
+      const metodoLogin = await leerEntrada('\nElige (1/2) [1]: ');
+      const loginGoogle = metodoLogin !== '2';
+
+      config = { loginGoogle };
+      Configuracion.guardar(config);
+
+      console.log(`\n✓ Configuración guardada: ${loginGoogle ? 'Login con Google' : 'Login manual'}`);
+      console.log('  (Para cambiarla, elimina el archivo .holded-config.json)\n');
+    } else {
+      console.log(`⚙️  Configuración cargada: ${config.loginGoogle ? 'Login con Google' : 'Login manual'}\n`);
+    }
+
     // Preguntar modo
     console.log('¿Modo de ejecución?');
     console.log('1. Real (jornada completa de 7.5 horas)');
@@ -680,7 +777,7 @@ async function main() {
     const simulacion = modo === '2';
 
     // Crear bot y ejecutar jornada
-    const bot = new HolledBot(false);
+    const bot = new HolledBot(false, config.loginGoogle);
     const resultado = await bot.ejecutarJornada(simulacion);
 
     process.exit(resultado ? 0 : 1);

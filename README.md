@@ -44,10 +44,28 @@ Modos disponibles:
 
 > **Importante:** La primera vez que se abra Chrome aparecera un popup preguntando si quieres iniciar sesion. Haz clic en **"Continuar sin iniciar sesion"** para que el bot funcione correctamente.
 
+La primera vez que ejecutes el bot, te preguntara como quieres hacer login:
+
+1. **Login con Google (automatico)** - El bot hace clic automaticamente en el boton de "Login con Google". Solo tendras que seleccionar tu cuenta de Google.
+2. **Login manual** - Introduces tu usuario y contrasena manualmente.
+
+Esta preferencia se guarda en el archivo `.holded-config.json` y se recuerda en futuras ejecuciones.
+
+Para cambiar el metodo de login, elimina el archivo de configuracion:
+
+```bash
+rm .holded-config.json
+```
+
+### Flujo de login
+
 1. Se abre el navegador automaticamente
-2. Haz login manualmente (solo la primera vez)
-3. El bot detecta cuando estas logueado y empieza
-4. La sesion se guarda para futuros usos
+2. Se aceptan las cookies si aparece el banner
+3. Segun tu configuracion:
+   - **Google**: El bot hace clic en "Login con Google" y esperas a seleccionar tu cuenta
+   - **Manual**: Introduces tus credenciales manualmente
+4. El bot detecta cuando estas logueado y empieza
+5. La sesion se guarda para futuros usos
 
 ## Funcionamiento
 
@@ -61,11 +79,13 @@ Cada fichaje reproduce una alerta sonora (macOS).
 ## Estructura
 
 ```
-fichajes/
-├── holded_bot.js    # Bot principal
-├── alarma.js        # Alertas sonoras
+ficha-o-sancion/
+├── holded_bot.js          # Bot principal
+├── alarma.js              # Alertas sonoras
 ├── package.json
-└── .gitignore
+├── .gitignore
+├── .holded-config.json    # Configuracion (metodo de login)
+└── .chrome-session/       # Sesion del navegador (cookies)
 ```
 
 ## Licencia
